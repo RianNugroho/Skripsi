@@ -81,6 +81,19 @@ def Inception(input_layer, filters):
                            convolve(input_layer,filters[2],filters[2].shape[0],padding="same")),axis=2)
     return result
 
+def maxPoolDerivative(dFront,prevLayer,next_layer,max_pool_size):
+    dCurrent=np.zeros(prevLayer.shape)
+    for unit in range(dFront.shape[2]):
+        for i in range(dFront.shape[0]):
+            for j in range(dFront.shape[1]):
+                startX=math.pow(max_pool_size,i)
+                startY=math.pow(max_pool_size,i)
+                for k in range(max_pool_size):
+                    for l in range(max_pool_size):
+                        if(prevLayer[startX-1+k,startY-1+l,unit]==next_layer[i,j,unit]):
+                            dCurrent[startX-1+k,startY-1+l,unit]=1
+    return dCurrent
+
 def backward(layers, target, weights, biases,max_pool_size):
     resultWeight=[]
     resultBias=[]
@@ -95,27 +108,24 @@ def backward(layers, target, weights, biases,max_pool_size):
     dL12=layers[10]
     dW2=dPred*dL13*dL12
     dB2=dPred*dL13
+    dFront=dPred*dL13
     resultWeight.append(dW2)
     resultBias.append(dB2)
 
     ##update layer 11
+    dFront*=weights[1]
     dL11=np.where(layers[9]>0,layers[9],1)
     dL10=layers[8]
-    dW1=dW2*dL11*dL10
+    dW1=dFront*dL11*dL10
     dB1=dW2*dL11
     resultWeight.append(dW1)
     resultBias.append(dB1)
+    dFront*=dL11
 
-    ##update layer 10
-    dW1=dW1.reshape((5,5,4))
-    for unit in range(dW1.shape[2]):
-        for i in range(dW1.shape[0]):
-            for j in range(dW1.shape[1]):
-                startX=math.pow(2,i)
-                startY=math.pow(2,i)
-                for k in range(max_pool_size[2].shape[0]):
-                    for l in range(max_pool_size[2].shape[1]):
-                        if(layers[6][startX-1+k,startY-1+l]==dW1[i,j]):
+    ##update layer 10 Convolution Layer ke 3
+    dFront*=weights[0]
+    dW1=dW1.reshape(layers[7].shape)
+    dL8=maxPoolDerivative(dW1,layers[6],layers[7],max_pool_size[2])
 
 
 
