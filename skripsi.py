@@ -13,7 +13,6 @@ def ReLU(layer):
     return results
 
 
-
 def SoftMax(layer):
     sumExp=0
     for i in range(len(layer)):
@@ -82,41 +81,50 @@ def Inception(input_layer, filters):
                            convolve(input_layer,filters[2],filters[2].shape[0],padding="same")),axis=2)
     return result
 
-def backward(layers, target):
-    results=[]
+def backward(layers, target, weights, biases,max_pool_size):
+    resultWeight=[]
+    resultBias=[]
+    resultFilter=[]
+
+
     ##update layer 12
-    crossentropyLoss=np.sum(np.multiply(target,np.log(layers[11]))+np.multiply((1-target),np.log(1-layers[11])))
+    crossentropyLoss=np.sum(np.multiply(target,np.log(layers[12]))+np.multiply((1-target),np.log(1-layers[12])))*-1/len(layers[12])
+    dPred=-1*np.multiply(target,1/layers[12])+np.multiply((1-target),1/(1-layers[12]))
     expSumSoftmax=np.sum(np.exp(layers[11]))
-    dSoftmax=np.multiply(layers[11],expSumSoftmax-layers[11])/math.pow(expSumSoftmax,2)
+    dL13=np.multiply(layers[11],expSumSoftmax-layers[11])/math.pow(expSumSoftmax,2)
+    dL12=layers[10]
+    dW2=dPred*dL13*dL12
+    dB2=dPred*dL13
+    resultWeight.append(dW2)
+    resultBias.append(dB2)
 
-    return results
+    ##update layer 11
+    dL11=np.where(layers[9]>0,layers[9],1)
+    dL10=layers[8]
+    dW1=dW2*dL11*dL10
+    dB1=dW2*dL11
+    resultWeight.append(dW1)
+    resultBias.append(dB1)
+
+    ##update layer 10
+    dW1=dW1.reshape((5,5,4))
+    for unit in range(dW1.shape[2]):
+        for i in range(dW1.shape[0]):
+            for j in range(dW1.shape[1]):
+                startX=math.pow(2,i)
+                startY=math.pow(2,i)
+                for k in range(max_pool_size[2].shape[0]):
+                    for l in range(max_pool_size[2].shape[1]):
+                        if(layers[6][startX-1+k,startY-1+l]==dW1[i,j]):
 
 
-def main():
 
-    datasets = pd.read_csv("fer2013.csv")
-    x = np.array([[int(pix) for pix in image.split()]
-                  for image in datasets.pixels]).reshape(-1, 48, 48, 1)
-    filter1 = np.random.uniform(low=-3, high=3, size=(3, 3, 3, 1))
-    filter2 = np.random.uniform(low=-3, high=3, size=(10, 3, 3, 5))
-    filter3 = np.random.uniform(low=-3, high=3, size=(3, 3, 3, 10))
-    filter4 = np.random.uniform(low=-3, high=3, size=(1, 3, 3, 3))
 
-    sobel_filter_vertical = np.array([[[1, 2, 1], [0, 0, 0], [-1, -2, -1]]]).reshape((1,3,3,1))
-    sobel_filter_horizontal = np.array([[[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]]).reshape((1,3,3,1))
-    filterInception = [filter1, sobel_filter_vertical, sobel_filter_horizontal]
-    print(x.shape)
-    for i in range(50):
-        for j in range(len(x)):
-            layer1 = Inception(x[j], filterInception)
-            layer2 = convolve(layer1, filter2, 10, padding="valid")
-            layer3 = maxpool(layer2, 2)
-            layer4 = convolve(layer3, filter3, 3, padding="valid")
-            layer5 = maxpool(layer4, 2)
-            layer6 = convolve(layer5, filter4, 1, padding="valid")
-            layer7 = maxpool(layer6, 2)
-            layer8 = layer7.flatten()
-            print(layer8.shape)
+
+    return resultWeight,resultBias,resultFilter
+
+
+
 
 np.random.seed(0)
 datasets = pd.read_csv("fer2013.csv")
