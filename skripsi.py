@@ -83,51 +83,66 @@ def Inception(input_layer, filters):
 
 def maxPoolDerivative(dFront,prevLayer,next_layer,max_pool_size):
     dCurrent=np.zeros(prevLayer.shape)
+    print("prevLayer",prevLayer.shape,"nextLayer",next_layer.shape)
     for unit in range(dFront.shape[2]):
         for i in range(dFront.shape[0]):
             for j in range(dFront.shape[1]):
-                startX=math.pow(max_pool_size,i)
-                startY=math.pow(max_pool_size,i)
+                startX=max_pool_size*i
+                startY=max_pool_size*j
                 for k in range(max_pool_size):
                     for l in range(max_pool_size):
                         if(prevLayer[startX-1+k,startY-1+l,unit]==next_layer[i,j,unit]):
                             dCurrent[startX-1+k,startY-1+l,unit]=1
     return dCurrent
 
-def backward(layers, target, weights, biases,max_pool_size):
+def ConvolveDerivative(dFront, dPrev):
+    dim_kiri = int(math.floor(((img.shape[0] + 2 * padding_size - filter.shape[1]) / strides) + 1))
+    dim_kanan = int(math.floor(((img.shape[1] + 2 * padding_size - filter.shape[2]) / strides) + 1))
+    result=np.zeros(())
+
+
+
+def backward(layers, target, weights,max_pool_size):
     resultWeight=[]
     resultBias=[]
     resultFilter=[]
 
 
-    ##update layer 12
-    crossentropyLoss=np.sum(np.multiply(target,np.log(layers[12]))+np.multiply((1-target),np.log(1-layers[12])))*-1/len(layers[12])
+    ##update Softmax layer
+    ##crossentropyLoss=np.sum(np.multiply(target,np.log(layers[12]))+np.multiply((1-target),np.log(1-layers[12])))*-1/len(layers[12])
+    print(layers[12].shape)
+    print((1-layers[12]).shape)
     dPred=-1*np.multiply(target,1/layers[12])+np.multiply((1-target),1/(1-layers[12]))
     expSumSoftmax=np.sum(np.exp(layers[11]))
     dL13=np.multiply(layers[11],expSumSoftmax-layers[11])/math.pow(expSumSoftmax,2)
     dL12=layers[10]
-    dW2=dPred*dL13*dL12
+    print(dPred.shape,dL13.shape,dL12.T.shape)
+    dW2=np.dot(dPred*dL13,dL12.T)
     dB2=dPred*dL13
     dFront=dPred*dL13
+    print("dw2",dW2.shape,"dB2",dB2.shape)
     resultWeight.append(dW2)
     resultBias.append(dB2)
 
-    ##update layer 11
-    dFront*=weights[1]
+    ##update Dense layer 1
+    dFront=np.dot(weights[1].T,dFront)
     dL11=np.where(layers[9]>0,layers[9],1)
     dL10=layers[8]
-    dW1=dFront*dL11*dL10
-    dB1=dW2*dL11
+    print("dFront",dFront.shape,"dL11",dL11.shape,"dL10",dL10.shape)
+    dW1=np.dot(dFront*dL11,dL10.T)
+    dB1=dFront*dL11
     resultWeight.append(dW1)
     resultBias.append(dB1)
-    dFront*=dL11
+    print(dFront.shape)
 
     ##update Convolution Layer ke 3
-    dFront*=weights[0]
+    dFront=np.dot(weights[0].T,dFront)
     dFront=dFront.reshape(layers[7].shape)
+    print("dFront",dFront.shape)
     dL8=maxPoolDerivative(dFront,layers[6],layers[7],max_pool_size[2])
     dL7=layers[5]
-    dFilter5=dFront*dL8*dL7
+    print("dFront", dFront.shape, "dL8", dL8.shape, "dL7", dL7.shape)
+    dFilter5=convolve(layers[5],dL8,)
     resultFilter.append(dFilter5)
     dFront*=dL8
 
@@ -146,7 +161,7 @@ def backward(layers, target, weights, biases,max_pool_size):
     dFront *= dL4
 
     ##update Inception Layer ke 2
-    
+    print(dFront.shape)
 
     return resultWeight,resultBias,resultFilter
 
@@ -182,24 +197,40 @@ bias2=np.random.uniform(low=-1,high=1,size=(10,1))
 
 
 img=normalize(x[1])
+layers=[]
 layer1=Inception(img, filterInception)
+layers.append(layer1)
 print("layer1",layer1.shape)
 layer2=Inception(layer1, [filter2,filter3,filter4])
+layers.append(layer2)
 print("layer2",layer2.shape)
 layer3=convolve(layer2,filter5,10,padding="valid")
+layers.append(layer3)
 layer4=maxpool(layer3,2)
+layers.append(layer4)
 print("layer4",layer4.shape)
 layer5=convolve(layer4,filter6,3,padding="valid")
+layers.append(layer5)
 layer6=maxpool(layer5,2)
+layers.append(layer6)
 print("layer6",layer6.shape)
 layer7=convolve(layer6,filter7,4,padding="valid")
+layers.append(layer7)
 layer8=maxpool(layer7,2)
+layers.append(layer8)
 print(layer8.shape)
 layer9=layer8.reshape((100,1))
+layers.append(layer9)
 layer10=Dense(layer9,weight1,bias1)
+layers.append(layer10)
 layer11=ReLU(layer10)
+layers.append(layer11)
 print(layer11.shape)
 layer12=Dense(layer11,weight2,bias2)
+layers.append(layer12)
 layer13=SoftMax(layer12)
+layers.append(layer13)
 print(layer13.shape)
 print(layer13)
+target=np.array([1,0,0,0,0,0,0,0,0,0]).reshape((10,1))
+a,b,c=backward(layers,target,[weight1,weight2],[2,2,2])
