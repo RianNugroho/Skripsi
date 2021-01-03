@@ -122,14 +122,31 @@ def backward(layers, target, weights, biases,max_pool_size):
     resultBias.append(dB1)
     dFront*=dL11
 
-    ##update layer 10 Convolution Layer ke 3
+    ##update Convolution Layer ke 3
     dFront*=weights[0]
-    dW1=dW1.reshape(layers[7].shape)
-    dL8=maxPoolDerivative(dW1,layers[6],layers[7],max_pool_size[2])
+    dFront=dFront.reshape(layers[7].shape)
+    dL8=maxPoolDerivative(dFront,layers[6],layers[7],max_pool_size[2])
+    dL7=layers[5]
+    dFilter5=dFront*dL8*dL7
+    resultFilter.append(dFilter5)
+    dFront*=dL8
 
+    ##update Convolution Layer ke 2
+    dL6 = maxPoolDerivative(dFront, layers[4], layers[5], max_pool_size[1])
+    dL5 = layers[3]
+    dFilter4 = dFront * dL6 * dL5
+    resultFilter.append(dFilter4)
+    dFront *= dL6
 
+    ##update Convolution Layer ke 1
+    dL4 = maxPoolDerivative(dFront, layers[2], layers[3], max_pool_size[0])
+    dL3 = layers[1]
+    dFilter3 = dFront * dL4 * dL3
+    resultFilter.append(dFilter3)
+    dFront *= dL4
 
-
+    ##update Inception Layer ke 2
+    
 
     return resultWeight,resultBias,resultFilter
 
