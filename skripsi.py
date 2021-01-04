@@ -95,10 +95,20 @@ def maxPoolDerivative(dFront,prevLayer,next_layer,max_pool_size):
                             dCurrent[startX-1+k,startY-1+l,unit]=1
     return dCurrent
 
-def ConvolveDerivative(dFront, dPrev):
-    dim_kiri = int(math.floor(((img.shape[0] + 2 * padding_size - filter.shape[1]) / strides) + 1))
-    dim_kanan = int(math.floor(((img.shape[1] + 2 * padding_size - filter.shape[2]) / strides) + 1))
-    result=np.zeros(())
+def ConvolveFilterDerivative(dFront, dPrev):
+    dim_kiri = dPrev.shape[0]-dFront.shape[0]+1
+    dim_kanan = dPrev.shape[1]-dFront.shape[1]+1
+    result=np.zeros((dFront.shape[2],dim_kiri,dim_kanan,dPrev.shape[2]))
+    for unit in range(dFront.shape[2]):
+        for i in range(dim_kiri):
+            for j in range(dim_kanan):
+                for channel in range(dPrev.shape[2]):
+                    for k in range(dFront.shape[0]):
+                        for l in range(dFront.shape[1]):
+                            result[unit,i,j,channel]+=dPrev[i+k,j+l,channel]*dFront[k,l,unit]
+    return result
+
+def ConvolveInputDerivative(dFront,Filter:
 
 
 
@@ -142,11 +152,12 @@ def backward(layers, target, weights,max_pool_size):
     dL8=maxPoolDerivative(dFront,layers[6],layers[7],max_pool_size[2])
     dL7=layers[5]
     print("dFront", dFront.shape, "dL8", dL8.shape, "dL7", dL7.shape)
-    dFilter5=convolve(layers[5],dL8,)
+    dFilter5=ConvolveFilterDerivative(dL8,dL7)
     resultFilter.append(dFilter5)
-    dFront*=dL8
+    dFront=np.copy(dL8)
 
     ##update Convolution Layer ke 2
+
     dL6 = maxPoolDerivative(dFront, layers[4], layers[5], max_pool_size[1])
     dL5 = layers[3]
     dFilter4 = dFront * dL6 * dL5
