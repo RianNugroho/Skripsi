@@ -95,6 +95,15 @@ def maxPoolDerivative(dFront,prevLayer,next_layer,max_pool_size):
                             dCurrent[startX-1+k,startY-1+l,unit]=1
     return dCurrent
 
+def add_padding_dFront(layer,desired_result_size):
+    tambahKiri=int((desired_result_size[0]-1)/2)
+    tambahKanan=int((desired_result_size[1]-1)/2)
+    dim_kiri=layer.shape[0]+tambahKiri*2
+    dim_kanan=layer.shape[1]+tambahKanan*2
+    result=np.zeros((dim_kiri,dim_kanan,layer.shape[2]))
+    result[tambahKiri:result.shape[0]-tambahKiri,tambahKanan:result.shape[1]-tambahKanan,:]=np.copy(layer)
+    return result
+
 def ConvolveFilterDerivative(dFront, dPrev):
     dim_kiri = dPrev.shape[0]-dFront.shape[0]+1
     dim_kanan = dPrev.shape[1]-dFront.shape[1]+1
@@ -108,11 +117,44 @@ def ConvolveFilterDerivative(dFront, dPrev):
                             result[unit,i,j,channel]+=dPrev[i+k,j+l,channel]*dFront[k,l,unit]
     return result
 
-def ConvolveInputDerivative(dFront,Filter:
+def FullConvolutionDerivative(dFront,Filter, padding="valid"):
+    if(padding=="valid"):
+        dim_kiri = dFront.shape[0] + Filter.shape[1] - 1
+        dim_kanan = dFront.shape[1] + Filter.shape[2] - 1
+        result = np.zeros((dim_kiri, dim_kanan, Filter.shape[3]))
+        filter = np.rot90(Filter, 2)
+        for unit in range(filter.shape[0]):
+            for i in range(dim_kiri):
+                for j in range(dim_kanan):
+                    for k in range(Filter.shape[1]):
+                        for l in range(Filter.shape[2]):
+                            for m in range(Filter.shape[3]):
+                                try:
+                                    result[i, j, m] += dFront[i - Filter.shape[1] + 1, j - Filter.shape[2] + 1, unit] * \
+                                                       Filter[unit, k, l, m]
+                                except:
+                                    result[i, j, m] += 0
+    elif(padding=="same"):
+        result = np.zeros((dFront.shape[0],dFront.shape[1], Filter.shape[3]))
+        filter = np.rot90(Filter, 2)
+        padding = int((Filter.shape[0]-1)/2)
+        for unit in range(filter.shape[0]):
+            for i in range(result.shape[0]-padding):
+                for j in range(result.shape[1]-padding):
+                    for k in range(Filter.shape[1]):
+                        for l in range(Filter.shape[2]):
+                            for m in range(Filter.shape[3]):
+                                try:
+                                    result[i, j, m] += dFront[i - Filter.shape[1] + 1+padding, j - Filter.shape[2] + 1 +padding, unit] * \
+                                                       Filter[unit, k, l, m]
+                                except:
+                                    result[i, j, m] += 0
+
+    return result
 
 
 
-def backward(layers, target, weights,max_pool_size):
+def backward(layers, target, weights,max_pool_size, filters, input):
     resultWeight=[]
     resultBias=[]
     resultFilter=[]
@@ -141,6 +183,7 @@ def backward(layers, target, weights,max_pool_size):
     print("dFront",dFront.shape,"dL11",dL11.shape,"dL10",dL10.shape)
     dW1=np.dot(dFront*dL11,dL10.T)
     dB1=dFront*dL11
+    print("dw1", dW1.shape, "dB1", dB1.shape)
     resultWeight.append(dW1)
     resultBias.append(dB1)
     print(dFront.shape)
@@ -152,27 +195,52 @@ def backward(layers, target, weights,max_pool_size):
     dL8=maxPoolDerivative(dFront,layers[6],layers[7],max_pool_size[2])
     dL7=layers[5]
     print("dFront", dFront.shape, "dL8", dL8.shape, "dL7", dL7.shape)
-    dFilter5=ConvolveFilterDerivative(dL8,dL7)
-    resultFilter.append(dFilter5)
-    dFront=np.copy(dL8)
+    dFilter7=ConvolveFilterDerivative(dL8,dL7)
+    print("dFilter7",dFilter7.shape)
+    resultFilter.append(dFilter7)
+    dFront=FullConvolutionDerivative(dL8,filters[6])
+    print(dFront.shape)
 
     ##update Convolution Layer ke 2
 
     dL6 = maxPoolDerivative(dFront, layers[4], layers[5], max_pool_size[1])
     dL5 = layers[3]
-    dFilter4 = dFront * dL6 * dL5
-    resultFilter.append(dFilter4)
-    dFront *= dL6
+    print("dFront", dFront.shape, "dL6", dL6.shape, "dL5", dL5.shape)
+    dFilter6 = ConvolveFilterDerivative(dL6,dL5)
+    resultFilter.append(dFilter6)
+    print("dFilter6", dFilter6.shape)
+    dFront =FullConvolutionDerivative(dL6,filters[5])
+    print("dFront", dFront.shape)
 
     ##update Convolution Layer ke 1
     dL4 = maxPoolDerivative(dFront, layers[2], layers[3], max_pool_size[0])
     dL3 = layers[1]
-    dFilter3 = dFront * dL4 * dL3
-    resultFilter.append(dFilter3)
-    dFront *= dL4
+    print("dFront", dFront.shape, "dL4", dL4.shape, "dL3", dL3.shape)
+    dFilter5 = ConvolveFilterDerivative(dL4,dL3)
+    resultFilter.append(dFilter5)
+    print("dFilter5", dFilter5.shape)
+    dFront = FullConvolutionDerivative(dL4,filters[4])
 
     ##update Inception Layer ke 2
-    print(dFront.shape)
+    dL2=layers[0]
+    print("dFront", dFront.shape, "dL2", dL2.shape)
+    dFilter2=ConvolveFilterDerivative(dFront[:,:,:3],dL2)
+    dFilter3=ConvolveFilterDerivative(add_padding_dFront(dFront[:,:,3:7],(3,3)),dL2)
+    dFilter4=ConvolveFilterDerivative(add_padding_dFront(dFront[:,:,7:],(5,5)),dL2)
+    a=FullConvolutionDerivative(dFront[:,:,:3],filters[1],padding="same")
+    b=FullConvolutionDerivative(dFront[:,:,3:7],filters[2],padding="same")
+    c=FullConvolutionDerivative(dFront[:,:,7:],filters[3],padding="same")
+    dFront=a+b+c
+    print("dFront",dFront.shape)
+    print("dFilter2", dFilter2.shape, "dFilter3", dFilter3.shape, "dFilter4", dFilter4.shape)
+    resultFilter.append(dFilter4)
+    resultFilter.append(dFilter3)
+    resultFilter.append(dFilter2)
+
+    ##update layer Inception 1
+    print("dFront", dFront.shape, "input", input.shape)
+    dFilter1=ConvolveFilterDerivative(add_padding_dFront(dFront[:,:,3],(3,3)),input)
+    resultFilter.append(dFilter1)
 
     return resultWeight,resultBias,resultFilter
 
@@ -181,7 +249,7 @@ def backward(layers, target, weights,max_pool_size):
 
 np.random.seed(0)
 datasets = pd.read_csv("fer2013.csv")
-
+print("len",len(datasets))
 x = np.array([[int(pix) for pix in image.split()]
               for image in datasets.pixels]).reshape(-1, 48, 48, 1)
 
@@ -244,4 +312,4 @@ layers.append(layer13)
 print(layer13.shape)
 print(layer13)
 target=np.array([1,0,0,0,0,0,0,0,0,0]).reshape((10,1))
-a,b,c=backward(layers,target,[weight1,weight2],[2,2,2])
+a,b,c=backward(layers,target,[weight1,weight2],[2,2,2],[filter1,filter2,filter3,filter4,filter5,filter6,filter7], img)
