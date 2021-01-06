@@ -225,8 +225,8 @@ def backward(layers, target, weights,max_pool_size, filters, input):
     dL2=layers[0]
     print("dFront", dFront.shape, "dL2", dL2.shape)
     dFilter2=ConvolveFilterDerivative(dFront[:,:,:3],dL2)
-    dFilter3=ConvolveFilterDerivative(add_padding_dFront(dFront[:,:,3:7],(3,3)),dL2)
-    dFilter4=ConvolveFilterDerivative(add_padding_dFront(dFront[:,:,7:],(5,5)),dL2)
+    dFilter3=ConvolveFilterDerivative(dFront[:,:,3:7],add_padding_dFront(dL2,(3,3)))
+    dFilter4=ConvolveFilterDerivative(dFront[:,:,7:],add_padding_dFront(dL2,(5,5)))
     a=FullConvolutionDerivative(dFront[:,:,:3],filters[1],padding="same")
     b=FullConvolutionDerivative(dFront[:,:,3:7],filters[2],padding="same")
     c=FullConvolutionDerivative(dFront[:,:,7:],filters[3],padding="same")
@@ -238,8 +238,9 @@ def backward(layers, target, weights,max_pool_size, filters, input):
     resultFilter.append(dFilter2)
 
     ##update layer Inception 1
-    print("dFront", dFront.shape, "input", input.shape)
-    dFilter1=ConvolveFilterDerivative(add_padding_dFront(dFront[:,:,3],(3,3)),input)
+    dL1=input
+    print("dFront", dFront.shape, "dL1", dL1.shape)
+    dFilter1=ConvolveFilterDerivative(dFront[:,:,:3],add_padding_dFront(dL1,(3,3)))
     resultFilter.append(dFilter1)
 
     return resultWeight,resultBias,resultFilter
@@ -276,6 +277,7 @@ bias2=np.random.uniform(low=-1,high=1,size=(10,1))
 
 
 img=normalize(x[1])
+print(img.shape)
 layers=[]
 layer1=Inception(img, filterInception)
 layers.append(layer1)
