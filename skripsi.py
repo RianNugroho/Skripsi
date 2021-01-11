@@ -1,6 +1,5 @@
 import numpy as np
 import math
-import cv2
 import pandas as pd
 
 
@@ -26,10 +25,10 @@ def Dense(input_layer,weights,biases):
     results=np.dot(weights,input_layer)+biases
     return results
 
-def normalize(img):
+def Normalize(img):
     return img/255
 
-def convolve(img, filter,num_units,padding="valid", strides=1,padding_size=0):
+def Convolve(img, filter,num_units,padding="valid", strides=1,padding_size=0):
     if (padding=="same"):
         results=np.zeros((img.shape[0],img.shape[1],num_units))
     else:
@@ -63,7 +62,7 @@ def convolve(img, filter,num_units,padding="valid", strides=1,padding_size=0):
 
 
 
-def maxpool(img, size):
+def Maxpool(img, size):
     result=np.zeros((int(math.ceil(img.shape[0]/size)),int(math.ceil(img.shape[1]/size)), img.shape[2]))
     for unit in range(img.shape[2]):
         for i in range(len(result)):
@@ -76,12 +75,12 @@ def maxpool(img, size):
 
 
 def Inception(input_layer, filters):
-    result=np.concatenate((convolve(input_layer,filters[0],filters[0].shape[0],padding="same"),
-                           convolve(input_layer,filters[1],filters[1].shape[0],padding="same"),
-                           convolve(input_layer,filters[2],filters[2].shape[0],padding="same")),axis=2)
+    result=np.concatenate((Convolve(input_layer,filters[0],filters[0].shape[0],padding="same"),
+                           Convolve(input_layer,filters[1],filters[1].shape[0],padding="same"),
+                           Convolve(input_layer,filters[2],filters[2].shape[0],padding="same")),axis=2)
     return result
 
-def maxPoolDerivative(dFront,prevLayer,next_layer,max_pool_size):
+def MaxpoolDerivative(dFront,prevLayer,next_layer,max_pool_size):
     dCurrent=np.zeros(prevLayer.shape)
     print("prevLayer",prevLayer.shape,"nextLayer",next_layer.shape)
     for unit in range(dFront.shape[2]):
@@ -95,7 +94,7 @@ def maxPoolDerivative(dFront,prevLayer,next_layer,max_pool_size):
                             dCurrent[startX-1+k,startY-1+l,unit]=1
     return dCurrent
 
-def add_padding_dFront(layer,desired_result_size):
+def Add_padding_dFront(layer,desired_result_size):
     tambahKiri=int((desired_result_size[0]-1)/2)
     tambahKanan=int((desired_result_size[1]-1)/2)
     dim_kiri=layer.shape[0]+tambahKiri*2
@@ -152,9 +151,17 @@ def FullConvolutionDerivative(dFront,Filter, padding="valid"):
 
     return result
 
+def AdamOptim(t,v,s,beta1,beta2,epsilon,derivative):
+    newV=beta1*v+(1-beta1)*derivative
+    newS=beta2*s+(1-beta2)*np.dot(derivative,derivative)
+    Vcorr=newV/(1-int(math.pow(beta1,t)))
+    Scorr=newS/(1-int(math.pow(beta2,t)))
+    result=Vcorr/(np.sqrt(Scorr)+epsilon)
+
+    return result,newV,newS
 
 
-def backward(layers, target, weights,max_pool_size, filters, input):
+def Backward(layers, target, weights,max_pool_size, filters, input):
     resultWeight=[]
     resultBias=[]
     resultFilter=[]
@@ -192,7 +199,7 @@ def backward(layers, target, weights,max_pool_size, filters, input):
     dFront=np.dot(weights[0].T,dFront)
     dFront=dFront.reshape(layers[7].shape)
     print("dFront",dFront.shape)
-    dL8=maxPoolDerivative(dFront,layers[6],layers[7],max_pool_size[2])
+    dL8=MaxpoolDerivative(dFront,layers[6],layers[7],max_pool_size[2])
     dL7=layers[5]
     print("dFront", dFront.shape, "dL8", dL8.shape, "dL7", dL7.shape)
     dFilter7=ConvolveFilterDerivative(dL8,dL7)
@@ -203,7 +210,7 @@ def backward(layers, target, weights,max_pool_size, filters, input):
 
     ##update Convolution Layer ke 2
 
-    dL6 = maxPoolDerivative(dFront, layers[4], layers[5], max_pool_size[1])
+    dL6 = MaxpoolDerivative(dFront, layers[4], layers[5], max_pool_size[1])
     dL5 = layers[3]
     print("dFront", dFront.shape, "dL6", dL6.shape, "dL5", dL5.shape)
     dFilter6 = ConvolveFilterDerivative(dL6,dL5)
@@ -213,7 +220,7 @@ def backward(layers, target, weights,max_pool_size, filters, input):
     print("dFront", dFront.shape)
 
     ##update Convolution Layer ke 1
-    dL4 = maxPoolDerivative(dFront, layers[2], layers[3], max_pool_size[0])
+    dL4 = MaxpoolDerivative(dFront, layers[2], layers[3], max_pool_size[0])
     dL3 = layers[1]
     print("dFront", dFront.shape, "dL4", dL4.shape, "dL3", dL3.shape)
     dFilter5 = ConvolveFilterDerivative(dL4,dL3)
@@ -225,8 +232,8 @@ def backward(layers, target, weights,max_pool_size, filters, input):
     dL2=layers[0]
     print("dFront", dFront.shape, "dL2", dL2.shape)
     dFilter2=ConvolveFilterDerivative(dFront[:,:,:3],dL2)
-    dFilter3=ConvolveFilterDerivative(dFront[:,:,3:7],add_padding_dFront(dL2,(3,3)))
-    dFilter4=ConvolveFilterDerivative(dFront[:,:,7:],add_padding_dFront(dL2,(5,5)))
+    dFilter3=ConvolveFilterDerivative(dFront[:,:,3:7],Add_padding_dFront(dL2,(3,3)))
+    dFilter4=ConvolveFilterDerivative(dFront[:,:,7:],Add_padding_dFront(dL2,(5,5)))
     a=FullConvolutionDerivative(dFront[:,:,:3],filters[1],padding="same")
     b=FullConvolutionDerivative(dFront[:,:,3:7],filters[2],padding="same")
     c=FullConvolutionDerivative(dFront[:,:,7:],filters[3],padding="same")
@@ -240,7 +247,7 @@ def backward(layers, target, weights,max_pool_size, filters, input):
     ##update layer Inception 1
     dL1=input
     print("dFront", dFront.shape, "dL1", dL1.shape)
-    dFilter1=ConvolveFilterDerivative(dFront[:,:,:3],add_padding_dFront(dL1,(3,3)))
+    dFilter1=ConvolveFilterDerivative(dFront[:,:,:3],Add_padding_dFront(dL1,(3,3)))
     resultFilter.append(dFilter1)
 
     return resultWeight,resultBias,resultFilter
@@ -276,7 +283,7 @@ bias1=np.random.uniform(low=-1,high=1,size=(50,1))
 bias2=np.random.uniform(low=-1,high=1,size=(10,1))
 
 
-img=normalize(x[1])
+img=Normalize(x[1])
 print(img.shape)
 layers=[]
 layer1=Inception(img, filterInception)
@@ -285,19 +292,19 @@ print("layer1",layer1.shape)
 layer2=Inception(layer1, [filter2,filter3,filter4])
 layers.append(layer2)
 print("layer2",layer2.shape)
-layer3=convolve(layer2,filter5,10,padding="valid")
+layer3=Convolve(layer2,filter5,10,padding="valid")
 layers.append(layer3)
-layer4=maxpool(layer3,2)
+layer4=Maxpool(layer3,2)
 layers.append(layer4)
 print("layer4",layer4.shape)
-layer5=convolve(layer4,filter6,3,padding="valid")
+layer5=Convolve(layer4,filter6,3,padding="valid")
 layers.append(layer5)
-layer6=maxpool(layer5,2)
+layer6=Maxpool(layer5,2)
 layers.append(layer6)
 print("layer6",layer6.shape)
-layer7=convolve(layer6,filter7,4,padding="valid")
+layer7=Convolve(layer6,filter7,4,padding="valid")
 layers.append(layer7)
-layer8=maxpool(layer7,2)
+layer8=Maxpool(layer7,2)
 layers.append(layer8)
 print(layer8.shape)
 layer9=layer8.reshape((100,1))
@@ -314,4 +321,4 @@ layers.append(layer13)
 print(layer13.shape)
 print(layer13)
 target=np.array([1,0,0,0,0,0,0,0,0,0]).reshape((10,1))
-a,b,c=backward(layers,target,[weight1,weight2],[2,2,2],[filter1,filter2,filter3,filter4,filter5,filter6,filter7], img)
+a,b,c=Backward(layers,target,[weight1,weight2],[2,2,2],[filter1,filter2,filter3,filter4,filter5,filter6,filter7], img)
